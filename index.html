@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Дефектоскоп — обследование трубопровода</title>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+<style>
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; width: 100%; height: 100%;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  color: #172033; background: #f5f7fa;
+}
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+
+/* ========== HEADER ========== */
+.header {
+  height: 64px; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: #ffffff; border-bottom: 1px solid #e5e8ee;
+}
+.logo { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; }
+.logo-icon {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  color: #ffffff; background: #2563eb; border-radius: 9px; font-weight: 800;
+}
+.header-info { display: flex; align-items: center; gap: 22px; color: #64748b; font-size: 13px; }
+.status {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; color: #15803d; background: #ecfdf3;
+  border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.status-dot { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; }
+.status.status-progress { color: #b45309; background: #fffbeb; }
+.status.status-progress .status-dot { background: #f59e0b; animation: pulse 1.5s infinite; }
+.status.status-error { color: #b91c1c; background: #fef2f2; }
+.status.status-error .status-dot { background: #ef4444; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+/* ========== NAVIGATION ========== */
+.nav {
+  display: flex; gap: 4px; padding: 0 24px;
+  background: #ffffff; border-bottom: 1px solid #e5e8ee;
+}
+.nav-item {
+  padding: 14px 18px; border: 0; background: transparent;
+  color: #64748b; font-size: 13px; font-weight: 500;
+  border-bottom: 2px solid transparent; transition: all .2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-item:hover { color: #172033; }
+.nav-item.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+.nav-item.disabled { opacity: .5; cursor: not-allowed; }
+.nav-step {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #e2e8f0; color: #64748b;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.nav-item.active .nav-step { background: #2563eb; color: #fff; }
+.nav-item.done .nav-step { background: #22c55e; color: #fff; }
+
+/* ========== PAGE ========== */
+.page { padding: 24px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+.page-title { margin: 0 0 6px; font-size: 26px; line-height: 1.2; }
+.page-subtitle { color: #64748b; font-size: 14px; }
+
+/* ========== SCREENS ========== */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ========== SUMMARY ========== */
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.summary-card { padding: 18px; background: #ffffff; border: 1px solid #e5e8ee; border-radius: 12px; }
+.summary-label { margin-bottom: 8px; color: #64748b; font-size: 13px; }
+.summary-value { font-size: 24px; font-weight: 700; }
+
+/* ========== SURVEYS LIST ========== */
+.surveys-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.survey-card {
+  padding: 18px; background: #ffffff; border: 1px solid #e5e8ee;
+  border-radius: 12px; cursor: pointer; transition: all .2s;
+}
+.survey-card:hover { border-color: #2563eb; box-shadow: 0 4px 16px rgba(37,99,235,.08); }
+.survey-card.active { border-color: #2563eb; background: #eff6ff; }
+.survey-name { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.survey-meta { display: flex; gap: 12px; color: #64748b; font-size: 12px; margin-bottom: 10px; }
+.survey-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.survey-status.new { background: #f1f5f9; color: #475569; }
+.survey-status.uploading { background: #fef3c7; color: #b45309; }
+.survey-status.uploaded { background: #dbeafe; color: #1d4ed8; }
+.survey-status.processing { background: #fef3c7; color: #b45309; }
+.survey-status.done { background: #ecfdf3; color: #15803d; }
+.survey-status.error { background: #fef2f2; color: #b91c1c; }
+
+/* ========== UPLOAD ZONE ========== */
+.upload-container { max-width: 800px; margin: 0 auto; }
+.upload-zone {
+  padding: 48px 24px; text-align: center;
+  background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 14px;
+  cursor: pointer; transition: all .2s; margin-bottom: 20px;
+}
+.upload-zone:hover, .upload-zone.dragover { border-color: #2563eb; background: #eff6ff; }
+.upload-icon {
+  width: 56px; height: 56px; margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: #eff6ff; color: #2563eb; border-radius: 14px;
+  font-size: 28px;
+}
+.upload-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.upload-hint { color: #64748b; font-size: 13px; margin-bottom: 8px; }
+.upload-formats { color: #94a3b8; font-size: 11px; }
+
+.file-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.file-item {
+  padding: 14px; background: #ffffff; border: 1px solid #e5e8ee;
+  border-radius: 10px; display: flex; align-items: center; gap: 12px;
+}
+.file-icon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9; border-radius: 8px; font-size: 18px;
+}
+.file-info { flex: 1; min-width: 0; }
+.file-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+.file-progress { height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.file-progress-fill { height: 100%; background: #2563eb; border-radius: 2px; transition: width .3s; }
+.file-status { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.file-status.ok { color: #15803d; }
+.file-status.loading { color: #b45309; }
+.file-status.error { color: #b91c1c; }
+.file-remove {
+  width: 28px; height: 28px; border: 0; border-radius: 6px;
+  background: #f1f5f9; color: #64748b; flex-shrink: 0;
+}
+.file-remove:hover { background: #fee2e2; color: #b91c1c; }
+
+.empty-files {
+  padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;
+  background: #f8fafc; border-radius: 10px; border: 1px dashed #e2e8f0;
+}
+
+/* ========== BUTTONS ========== */
+.btn {
+  height: 40px; padding: 0 18px; border: 0; border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all .2s;
+}
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:disabled { background: #cbd5e1; cursor: not-allowed; }
+.btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #dbe1e8; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-block { width: 100%; }
+.btn-lg { height: 46px; font-size: 14px; }
+
+/* ========== PROCESSING ========== */
+.processing-container { max-width: 600px; margin: 40px auto; text-align: center; }
+.processing-card {
+  padding: 40px 30px; background: #ffffff;
+  border: 1px solid #e5e8ee; border-radius: 14px;
+}
+.processing-spinner {
+  width: 64px; height: 64px; margin: 0 auto 20px;
+  border: 4px solid #e2e8f0; border-top-color: #2563eb;
+  border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.processing-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.processing-subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+.processing-steps { text-align: left; margin-top: 20px; }
+.processing-step {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; font-size: 13px; color: #94a3b8;
+}
+.processing-step.active { color: #2563eb; font-weight: 600; }
+.processing-step.done { color: #15803d; }
+.processing-step-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9; font-size: 11px; flex-shrink: 0;
+}
+.processing-step.active .processing-step-icon { background: #dbeafe; color: #2563eb; }
+.processing-step.done .processing-step-icon { background: #ecfdf3; color: #15803d; }
+
+/* ========== WORKSPACE ========== */
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 16px; height: calc(100vh - 250px); min-height: 650px; }
+
+/* ========== MAP ========== */
+.map-panel { position: relative; overflow: hidden; background: #ffffff; border: 1px solid #e5e8ee; border-radius: 14px; }
+#map { width: 100%; height: 100%; }
+.map-controls {
+  position: absolute; top: 14px; left: 14px; z-index: 10;
+  display: flex; gap: 3px; padding: 4px;
+  background: #ffffff; border-radius: 9px; box-shadow: 0 3px 14px rgba(0,0,0,.12);
+}
+.map-control-button {
+  padding: 8px 12px; border: 0; border-radius: 6px;
+  background: transparent; color: #475569; font-size: 12px;
+}
+.map-control-button.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+.map-legend {
+  position: absolute; left: 14px; bottom: 14px; z-index: 10;
+  padding: 12px 14px; background: #ffffff; border-radius: 10px;
+  box-shadow: 0 3px 14px rgba(0,0,0,.12); font-size: 12px;
+}
+.legend-title { margin-bottom: 8px; font-weight: 700; }
+.legend-item { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.legend-line { width: 24px; height: 4px; background: #2563eb; border-radius: 2px; }
+.legend-point { width: 10px; height: 10px; background: #ef4444; border-radius: 50%; }
+.legend-control { width: 10px; height: 10px; background: #16a34a; border-radius: 50%; }
+
+/* ========== SIDEBAR ========== */
+.sidebar {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #ffffff; border: 1px solid #e5e8ee; border-radius: 14px;
+}
+.sidebar-header { padding: 18px; border-bottom: 1px solid #e5e8ee; }
+.sidebar-title { margin-bottom: 4px; font-size: 17px; font-weight: 700; }
+.sidebar-subtitle { color: #64748b; font-size: 12px; }
+
+/* ========== FILTERS ========== */
+.filters { display: grid; gap: 9px; padding: 14px; border-bottom: 1px solid #e5e8ee; }
+.filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.input, .select {
+  width: 100%; height: 38px; padding: 0 10px;
+  border: 1px solid #dbe1e8; border-radius: 8px; outline: none;
+  background: #ffffff; color: #172033; font-size: 12px;
+}
+.input:focus, .select:focus { border-color: #2563eb; }
+.reset-button {
+  height: 34px; border: 1px solid #dbe1e8; border-radius: 7px;
+  background: #f8fafc; color: #475569; font-size: 12px;
+}
+.reset-button:hover { background: #f1f5f9; }
+
+/* ========== DEFECT LIST ========== */
+.defect-list { flex: 1; overflow-y: auto; }
+.defect-item {
+  padding: 14px 16px; border-bottom: 1px solid #edf0f4;
+  cursor: pointer; transition: background .15s, box-shadow .15s;
+}
+.defect-item:hover { background: #f8fafc; }
+.defect-item.active { background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
+.defect-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.defect-id { font-size: 14px; font-weight: 700; }
+.type-badge { padding: 4px 7px; border-radius: 20px; background: #f1f5f9; color: #475569; font-size: 10px; }
+.defect-type { margin-bottom: 4px; color: #64748b; font-size: 12px; }
+.defect-odometer { color: #475569; font-size: 12px; }
+.defect-coordinates { margin-top: 7px; color: #64748b; font-family: monospace; font-size: 11px; }
+
+/* ========== DETAILS ========== */
+.details { padding: 16px; background: #fbfcfe; border-top: 1px solid #e5e8ee; }
+.details-title { margin-bottom: 14px; font-size: 16px; font-weight: 700; }
+.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.detail-label { margin-bottom: 3px; color: #64748b; font-size: 10px; }
+.detail-value { font-size: 12px; font-weight: 600; }
+.coordinates { grid-column: 1 / -1; }
+.coordinates-value { overflow: hidden; margin-top: 6px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; }
+.coordinate-row {
+  display: grid; grid-template-columns: 70px 1fr 34px;
+  align-items: center; gap: 8px; min-height: 38px; padding: 0 9px;
+  border-bottom: 1px solid #edf0f4;
+}
+.coordinate-row:last-child { border-bottom: 0; }
+.coordinate-row span { color: #64748b; font-size: 11px; }
+.coordinate-row strong { font-family: monospace; font-size: 12px; }
+.coordinate-copy {
+  width: 28px; height: 28px; border: 0; border-radius: 6px;
+  background: #f1f5f9; color: #475569;
+}
+.coordinate-copy:hover { background: #e2e8f0; }
+.open-map-button {
+  width: 100%; height: 36px; border: 0; border-radius: 7px;
+  background: #2563eb; color: #ffffff; font-size: 12px; font-weight: 600;
+}
+.open-map-button:hover { background: #1d4ed8; }
+
+.empty { padding: 30px 16px; color: #64748b; text-align: center; font-size: 13px; }
+
+/* ========== EXPORT ========== */
+.export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+.export-card {
+  padding: 18px; background: #ffffff; border: 1px solid #e5e8ee;
+  border-radius: 12px; cursor: pointer; transition: all .2s; text-align: center;
+}
+.export-card:hover { border-color: #2563eb; background: #eff6ff; }
+.export-icon { font-size: 32px; margin-bottom: 8px; }
+.export-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.export-desc { font-size: 11px; color: #64748b; }
+
+/* ========== TOAST ========== */
+.toast {
+  position: fixed; right: 24px; bottom: 24px; z-index: 1000;
+  padding: 11px 15px; background: #172033; color: #ffffff;
+  border-radius: 8px; opacity: 0; transform: translateY(10px);
+  pointer-events: none; transition: opacity .2s, transform .2s; font-size: 12px;
+}
+.toast.visible { opacity: 1; transform: translateY(0); }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 1fr; height: auto; }
+  .map-panel { height: 600px; }
+  .sidebar { min-height: 650px; }
+}
+@media (max-width: 700px) {
+  .header { padding: 0 14px; }
+  .header-info { display: none; }
+  .page { padding: 14px; }
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary-value { font-size: 20px; }
+  .filter-row { grid-template-columns: 1fr; }
+  .nav { padding: 0 14px; overflow-x: auto; }
+  .nav-item { white-space: nowrap; padding: 14px 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ========== HEADER ========== -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">D</div>
+    <span>Дефектоскоп</span>
+  </div>
+  <div class="header-info">
+    <span id="headerSurveyName">—</span>
+    <span id="headerDate">—</span>
+    <span class="status" id="headerStatus">
+      <span class="status-dot"></span>
+      <span id="headerStatusText">Нет обследования</span>
+    </span>
+  </div>
+</header>
+
+<!-- ========== NAVIGATION ========== -->
+<nav class="nav">
+  <button class="nav-item active" data-screen="surveys" onclick="showScreen('surveys')">
+    <span class="nav-step">1</span> Обследования
+  </button>
+  <button class="nav-item disabled" data-screen="upload" onclick="showScreen('upload')">
+    <span class="nav-step">2</span> Загрузка
+  </button>
+  <button class="nav-item disabled" data-screen="processing" onclick="showScreen('processing')">
+    <span class="nav-step">3</span> Обработка
+  </button>
+  <button class="nav-item disabled" data-screen="results" onclick="showScreen('results')">
+    <span class="nav-step">4</span> Результаты
+  </button>
+</nav>
+
+<!-- ========== SCREEN 1: SURVEYS ========== -->
+<main class="page">
+  <section class="screen active" id="screen-surveys">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Обследования</h1>
+        <div class="page-subtitle">Выберите обследование или создайте новое</div>
+      </div>
+      <button class="btn btn-primary" onclick="createNewSurvey()">+ Новое обследование</button>
+    </div>
+    <div class="surveys-grid" id="surveysGrid"></div>
+  </section>
+
+  <!-- ========== SCREEN 2: UPLOAD ========== -->
+  <section class="screen" id="screen-upload">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Загрузка данных</h1>
+        <div class="page-subtitle" id="uploadSubtitle">Загрузите файлы обследования</div>
+      </div>
+    </div>
+    <div class="upload-container">
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📁</div>
+        <div class="upload-title">Перетащите файлы сюда</div>
+        <div class="upload-hint">или нажмите для выбора</div>
+        <div class="upload-formats">Поддерживаемые форматы: CSV, JSON, XLSX, JPG, PNG</div>
+      </div>
+      <input type="file" id="fileInput" multiple hidden accept=".csv,.json,.xlsx,.jpg,.jpeg,.png">
+
+      <div class="file-list" id="fileList">
+        <div class="empty-files">Нет загруженных файлов</div>
+      </div>
+
+      <button class="btn btn-primary btn-lg btn-block" id="btnStartProcessing" onclick="startProcessing()" disabled>
+        ⚙️ Запустить обработку
+      </button>
+    </div>
+  </section>
+
+  <!-- ========== SCREEN 3: PROCESSING ========== -->
+  <section class="screen" id="screen-processing">
+    <div class="processing-container">
+      <div class="processing-card">
+        <div class="processing-spinner" id="processingSpinner"></div>
+        <div class="processing-title" id="processingTitle">Обработка данных</div>
+        <div class="processing-subtitle" id="processingSubtitle">Пожалуйста, подождите...</div>
+        <div class="processing-steps" id="processingSteps"></div>
+        <button class="btn btn-primary btn-lg btn-block" id="btnViewResults" onclick="showScreen('results')" style="margin-top:24px;display:none">
+          Посмотреть результаты →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SCREEN 4: RESULTS ========== -->
+  <section class="screen" id="screen-results">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title" id="resultsTitle">Участок</h1>
+        <div class="page-subtitle">Роботизированное обследование трубопровода</div>
+      </div>
+      <button class="btn btn-secondary" onclick="showExportModal()">📥 Экспорт</button>
+    </div>
+
+    <section class="summary">
+      <div class="summary-card">
+        <div class="summary-label">Длина обследования</div>
+        <div class="summary-value" id="summaryLength">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Дефектов найдено</div>
+        <div class="summary-value" id="summaryDefects">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Контрольных точек</div>
+        <div class="summary-value" id="summaryControl">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Статус</div>
+        <div class="summary-value" id="summaryStatus">—</div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="map-panel">
+        <div class="map-controls">
+          <button id="mapButton" class="map-control-button active" onclick="setMapType('map')">Карта</button>
+          <button id="satelliteButton" class="map-control-button" onclick="setMapType('satellite')">Спутник</button>
+        </div>
+        <div id="map"></div>
+        <div class="map-legend">
+          <div class="legend-title">Обозначения</div>
+          <div class="legend-item"><span class="legend-line"></span>Траектория обследования</div>
+          <div class="legend-item"><span class="legend-point"></span>Дефект</div>
+          <div class="legend-item"><span class="legend-control"></span>Контрольная точка</div>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">Дефекты</div>
+          <div class="sidebar-subtitle">Найденные дефекты на обследованном участке</div>
+        </div>
+        <div class="filters">
+          <input id="searchInput" class="input" placeholder="Поиск по ID..." oninput="filterDefects()" />
+          <div class="filter-row">
+            <select id="typeFilter" class="select" onchange="filterDefects()">
+              <option value="">Все типы</option>
+              <option value="crack">Трещина</option>
+              <option value="corrosion">Коррозия</option>
+              <option value="deformation">Деформация</option>
+              <option value="damage">Повреждение</option>
+            </select>
+            <select id="severityFilter" class="select" onchange="filterDefects()">
+              <option value="">Все степени</option>
+              <option value="high">Высокая</option>
+              <option value="medium">Средняя</option>
+              <option value="low">Низкая</option>
+            </select>
+          </div>
+          <button class="reset-button" onclick="resetFilters()">Сбросить фильтры</button>
+        </div>
+        <div id="defectList" class="defect-list"></div>
+        <div id="details" class="details">
+          <div class="details-title">Выберите дефект</div>
+          <div style="color:#64748b;font-size:12px;">Нажмите на дефект на карте или в списке.</div>
+        </div>
+      </aside>
+    </section>
+  </section>
+</main>
+
+<!-- ========== EXPORT MODAL ========== -->
+<div id="exportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:#fff;border-radius:14px;width:560px;max-width:90vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;font-size:20px">Экспорт результатов</h2>
+      <button onclick="closeExportModal()" style="background:none;border:0;font-size:24px;color:#64748b;cursor:pointer">×</button>
+    </div>
+    <p style="color:#64748b;font-size:13px;margin:0 0 16px">Выберите формат экспорта:</p>
+    <div class="export-grid">
+      <div class="export-card" onclick="doExport('JSON')">
+        <div class="export-icon">🔧</div>
+        <div class="export-name">JSON</div>
+        <div class="export-desc">Все данные обследования</div>
+      </div>
+      <div class="export-card" onclick="doExport('CSV')">
+        <div class="export-icon">📊</div>
+        <div class="export-name">CSV</div>
+        <div class="export-desc">Таблица дефектов</div>
+      </div>
+      <div class="export-card" onclick="doExport('KML')">
+        <div class="export-icon">🌍</div>
+        <div class="export-name">KML</div>
+        <div class="export-desc">Для Google Earth</div>
+      </div>
+      <div class="export-card" onclick="doExport('PDF')">
+        <div class="export-icon">📄</div>
+        <div class="export-name">PDF</div>
+        <div class="export-desc">Отчёт с картой</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast"></div>
+
+<script>
+/* =====================================================
+   STATE
+===================================================== */
+let currentSurvey = null;
+let surveys = [
+  {
+    id: 'SURVEY-001',
+    name: 'Участок ВК-24',
+    date: '24.07.2026',
+    status: 'done',
+    statusName: 'Обработка завершена',
+    length: 2140,
+    defectsCount: 5,
+    controlPointsCount: 5,
+    trajectory: [
+      [55.7660, 37.5950], [55.7638, 37.5990], [55.7610, 37.6030],
+      [55.7590, 37.6070], [55.7570, 37.6100], [55.7550, 37.6140],
+      [55.7538, 37.6173], [55.7510, 37.6210], [55.7490, 37.6250],
+      [55.7470, 37.6300], [55.7440, 37.6370], [55.7420, 37.6420],
+      [55.7390, 37.6480], [55.7370, 37.6530], [55.7350, 37.6600]
+    ],
+    controlPoints: [
+      { id: "КТ-01", index: 2 }, { id: "КТ-04", index: 4 },
+      { id: "КТ-07", index: 6 }, { id: "КТ-10", index: 10 },
+      { id: "КТ-12", index: 12 }
+    ],
+    defects: [
+      { id: "DEF-001", type: "crack", typeName: "Трещина", severity: "high", severityName: "Высокая", odometer: 124.6, position: { latitude: 55.761000, longitude: 37.603000 }, trajectoryIndex: 2 },
+      { id: "DEF-014", type: "crack", typeName: "Трещина", severity: "medium", severityName: "Средняя", odometer: 842.6, position: { latitude: 55.753821, longitude: 37.617294 }, trajectoryIndex: 6 },
+      { id: "DEF-021", type: "corrosion", typeName: "Коррозия", severity: "low", severityName: "Низкая", odometer: 1284.2, position: { latitude: 55.749000, longitude: 37.625000 }, trajectoryIndex: 8 },
+      { id: "DEF-025", type: "deformation", typeName: "Деформация", severity: "high", severityName: "Высокая", odometer: 1642.7, position: { latitude: 55.744000, longitude: 37.637000 }, trajectoryIndex: 10 },
+      { id: "DEF-026", type: "corrosion", typeName: "Коррозия", severity: "medium", severityName: "Средняя", odometer: 1801.3, position: { latitude: 55.739000, longitude: 37.648000 }, trajectoryIndex: 12 }
+    ]
+  },
+  {
+    id: 'SURVEY-002',
+    name: 'Участок ВК-25',
+    date: '18.09.2026',
+    status: 'processing',
+    statusName: 'Обработка выполняется',
+    length: 1850, defectsCount: 0, controlPointsCount: 4
+  },
+  {
+    id: 'SURVEY-003',
+    name: 'Участок ВК-26',
+    date: '22.09.2026',
+    status: 'new',
+    statusName: 'Новое',
+    length: 0, defectsCount: 0, controlPointsCount: 0
+  }
+];
+
+let map = null;
+let mapReady = false;
+let defectMarkers = [];
+let selectedDefect = null;
+let uploadedFiles = [];
+
+/* =====================================================
+   INIT
+===================================================== */
+ymaps.ready(() => {
+  map = new ymaps.Map("map", { center: [55.75, 37.62], zoom: 12, controls: ["zoomControl", "fullscreenControl"] });
+  mapReady = true;
+});
+
+renderSurveys();
+
+/* =====================================================
+   NAVIGATION
+===================================================== */
+function showScreen(name) {
+  const navItem = document.querySelector(`.nav-item[data-screen="${name}"]`);
+  if (navItem && navItem.classList.contains('disabled')) return;
+
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  navItem.classList.add('active');
+
+  if (name === 'results' && currentSurvey && mapReady) {
+    setTimeout(() => {
+      renderMap();
+      map.container.fitToViewport();
+    }, 100);
+  }
+}
+
+function updateNav() {
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const screen = n.dataset.screen;
+    n.classList.remove('disabled', 'done');
+    if (screen === 'surveys') return;
+    if (!currentSurvey) { n.classList.add('disabled'); return; }
+    if (screen === 'upload' && currentSurvey.status === 'new') return;
+    if (screen === 'processing' && (currentSurvey.status === 'uploaded' || currentSurvey.status === 'processing')) return;
+    if (screen === 'results' && currentSurvey.status === 'done') return;
+    if (['upload','processing','results'].includes(screen) && currentSurvey.status === 'done') {
+      n.classList.add('done');
+    }
+  });
+}
+
+function updateHeader() {
+  if (!currentSurvey) {
+    document.getElementById('headerSurveyName').textContent = '—';
+    document.getElementById('headerDate').textContent = '—';
+    document.getElementById('headerStatusText').textContent = 'Нет обследования';
+    return;
+  }
+  document.getElementById('headerSurveyName').textContent = currentSurvey.name;
+  document.getElementById('headerDate').textContent = currentSurvey.date;
+  const statusEl = document.getElementById('headerStatus');
+  statusEl.className = 'status';
+  if (currentSurvey.status === 'processing') statusEl.classList.add('status-progress');
+  else if (currentSurvey.status === 'error') statusEl.classList.add('status-error');
+  document.getElementById('headerStatusText').textContent = currentSurvey.statusName;
+}
+
+/* =====================================================
+   SURVEYS
+===================================================== */
+function renderSurveys() {
+  const grid = document.getElementById('surveysGrid');
+  grid.innerHTML = surveys.map(s => `
+    <div class="survey-card ${currentSurvey?.id === s.id ? 'active' : ''}" onclick="selectSurvey('${s.id}')">
+      <div class="survey-name">${s.name}</div>
+      <div class="survey-meta">
+        <span>📅 ${s.date}</span>
+        <span>📏 ${s.length} м</span>
+        <span>🔴 ${s.defectsCount} дефектов</span>
+      </div>
+      <span class="survey-status ${s.status}">
+        <span class="status-dot"></span>
+        ${s.statusName}
+      </span>
+    </div>
+  `).join('');
+}
+
+function selectSurvey(id) {
+  currentSurvey = surveys.find(s => s.id === id);
+  renderSurveys();
+  updateNav();
+  updateHeader();
+
+  if (currentSurvey.status === 'done') {
+    showScreen('results');
+    renderResults();
+  } else if (currentSurvey.status === 'new' || currentSurvey.status === 'uploaded') {
+    showScreen('upload');
+    renderUpload();
+  } else if (currentSurvey.status === 'processing') {
+    showScreen('processing');
+  } else {
+    showScreen('upload');
+    renderUpload();
+  }
+}
+
+function createNewSurvey() {
+  const id = 'SURVEY-' + String(surveys.length + 1).padStart(3, '0');
+  const today = new Date().toLocaleDateString('ru-RU');
+  surveys.unshift({
+    id, name: `Новое обследование ${surveys.length + 1}`,
+    date: today, status: 'new', statusName: 'Новое',
+    length: 0, defectsCount: 0, controlPointsCount: 0
+  });
+  renderSurveys();
+  selectSurvey(id);
+  showToast('Создано новое обследование');
+}
+
+/* =====================================================
+   UPLOAD
+===================================================== */
+function renderUpload() {
+  document.getElementById('uploadSubtitle').textContent = `Обследование: ${currentSurvey?.name || '—'}`;
+  const fileList = document.getElementById('fileList');
+  if (uploadedFiles.length === 0) {
+    fileList.innerHTML = '<div class="empty-files">Нет загруженных файлов</div>';
+  } else {
+    fileList.innerHTML = uploadedFiles.map((f, i) => `
+      <div class="file-item">
+        <div class="file-icon">${getFileIcon(f.name)}</div>
+        <div class="file-info">
+          <div class="file-name">${f.name}</div>
+          <div class="file-meta">${formatSize(f.size)} · ${getFileType(f.name)}</div>
+          <div class="file-progress"><div class="file-progress-fill" style="width:${f.progress}%"></div></div>
+        </div>
+        <span class="file-status ${f.status}">${getStatusText(f.status)}</span>
+        <button class="file-remove" onclick="removeFile(${i})" title="Удалить">✕</button>
+      </div>
+    `).join('');
+  }
+  document.getElementById('btnStartProcessing').disabled = !uploadedFiles.some(f => f.status === 'ok');
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  return { csv: '📊', json: '🔧', xlsx: '📈', jpg: '🖼️', jpeg: '🖼️', png: '🖼️' }[ext] || '📄';
+}
+
+function getFileType(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  return { csv: 'Данные', json: 'Данные', xlsx: 'Таблица', jpg: 'Изображение', jpeg: 'Изображение', png: 'Изображение' }[ext] || 'Файл';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' Б';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+  return (bytes / 1024 / 1024).toFixed(1) + ' МБ';
+}
+
+function getStatusText(status) {
+  return { loading: '⏳ Загрузка', ok: '✓ Загружен', error: '✗ Ошибка' }[status] || status;
+}
+
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(files) {
+  const validExts = ['csv','json','xlsx','jpg','jpeg','png'];
+  Array.from(files).forEach(file => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isValid = validExts.includes(ext);
+    const fileObj = {
+      name: file.name, size: file.size, file,
+      status: isValid ? 'loading' : 'error',
+      progress: 0, parsed: null
+    };
+    uploadedFiles.push(fileObj);
+    renderUpload();
+
+    if (!isValid) {
+      showToast(`Формат не поддерживается: ${file.name}`, 'error');
+      return;
+    }
+
+    // Simulate upload + real parse
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 20 + Math.random() * 30;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        parseFile(fileObj);
+      }
+      fileObj.progress = progress;
+      renderUpload();
+    }, 200);
+  });
+}
+
+function parseFile(fileObj) {
+  const ext = fileObj.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      if (ext === 'json') {
+        const data = JSON.parse(e.target.result);
+        fileObj.parsed = data;
+        fileObj.status = 'ok';
+        showToast(`Файл ${fileObj.name} успешно загружен`);
+      } else if (ext === 'csv') {
+        const text = e.target.result;
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        const rows = lines.slice(1).map(line => {
+          const values = line.split(',');
+          const obj = {};
+          headers.forEach((h, i) => obj[h] = values[i]?.trim());
+          return obj;
+        });
+        fileObj.parsed = { headers, rows };
+        fileObj.status = 'ok';
+        showToast(`Файл ${fileObj.name} успешно загружен (${rows.length} строк)`);
+      } else {
+        fileObj.status = 'ok';
+        showToast(`Файл ${fileObj.name} загружен`);
+      }
+    } catch (err) {
+      fileObj.status = 'error';
+      showToast(`Ошибка парсинга: ${fileObj.name}`, 'error');
+    }
+    renderUpload();
+  };
+
+  reader.onerror = () => {
+    fileObj.status = 'error';
+    renderUpload();
+  };
+
+  if (ext === 'json' || ext === 'csv') {
+    reader.readAsText(fileObj.file);
+  } else {
+    fileObj.status = 'ok';
+    renderUpload();
+  }
+}
+
+function removeFile(index) {
+  uploadedFiles.splice(index, 1);
+  renderUpload();
+}
+
+/* =====================================================
+   PROCESSING
+===================================================== */
+function startProcessing() {
+  if (!uploadedFiles.some(f => f.status === 'ok')) {
+    showToast('Сначала загрузите файлы', 'error');
+    return;
+  }
+
+  currentSurvey.status = 'processing';
+  currentSurvey.statusName = 'Обработка выполняется';
+  updateHeader();
+  updateNav();
+
+  // Apply parsed data to survey
+  applyParsedData();
+
+  showScreen('processing');
+  runProcessing();
+}
+
+function applyParsedData() {
+  // Try to extract trajectory, defects, control points from uploaded files
+  uploadedFiles.forEach(f => {
+    if (!f.parsed) return;
+
+    // JSON with defects array
+    if (f.parsed.defects && Array.isArray(f.parsed.defects)) {
+      currentSurvey.defects = f.parsed.defects.map((d, i) => ({
+        id: d.id || d.ID || `DEF-${String(i+1).padStart(3,'0')}`,
+        type: d.type || 'damage',
+        typeName: d.typeName || d.type_name || 'Повреждение',
+        severity: d.severity || 'medium',
+        severityName: d.severityName || d.severity_name || 'Средняя',
+        odometer: parseFloat(d.odometer || d.odo || 0),
+        position: {
+          latitude: parseFloat(d.latitude || d.lat || 55.75),
+          longitude: parseFloat(d.longitude || d.lng || d.lon || 37.62)
+        },
+        trajectoryIndex: parseInt(d.trajectoryIndex || 0)
+      }));
+      currentSurvey.defectsCount = currentSurvey.defects.length;
+    }
+
+    // JSON with trajectory
+    if (f.parsed.trajectory && Array.isArray(f.parsed.trajectory)) {
+      currentSurvey.trajectory = f.parsed.trajectory;
+    }
+
+    // JSON with controlPoints
+    if (f.parsed.controlPoints && Array.isArray(f.parsed.controlPoints)) {
+      currentSurvey.controlPoints = f.parsed.controlPoints;
+      currentSurvey.controlPointsCount = currentSurvey.controlPoints.length;
+    }
+
+    // CSV with coordinates
+    if (f.parsed.rows && f.parsed.headers) {
+      const h = f.parsed.headers;
+      const hasLat = h.some(x => /lat/i.test(x));
+      const hasLng = h.some(x => /lng|lon/i.test(x));
+      if (hasLat && hasLng) {
+        const latKey = h.find(x => /lat/i.test(x));
+        const lngKey = h.find(x => /lng|lon/i.test(x));
+        const odoKey = h.find(x => /odo/i.test(x));
+        const typeKey = h.find(x => /type/i.test(x));
+        const idKey = h.find(x => /id/i.test(x));
+
+        // If file has trajectory-like data (many rows), use as trajectory
+        if (f.parsed.rows.length > 10 && !currentSurvey.trajectory) {
+          currentSurvey.trajectory = f.parsed.rows
+            .map(r => [parseFloat(r[latKey]), parseFloat(r[lngKey])])
+            .filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+        }
+        // Otherwise treat as defects
+        else if (!currentSurvey.defects || currentSurvey.defects.length === 0) {
+          currentSurvey.defects = f.parsed.rows.map((r, i) => ({
+            id: r[idKey] || `DEF-${String(i+1).padStart(3,'0')}`,
+            type: r[typeKey] || 'damage',
+            typeName: r.typeName || 'Повреждение',
+            severity: 'medium',
+            severityName: 'Средняя',
+            odometer: parseFloat(r[odoKey] || 0),
+            position: { latitude: parseFloat(r[latKey]), longitude: parseFloat(r[lngKey]) },
+            trajectoryIndex: 0
+          }));
+          currentSurvey.defectsCount = currentSurvey.defects.length;
+        }
+      }
+    }
+  });
+
+  // Fallback: if no trajectory, use demo
+  if (!currentSurvey.trajectory) {
+    currentSurvey.trajectory = [
+      [55.7660, 37.5950], [55.7638, 37.5990], [55.7610, 37.6030],
+      [55.7590, 37.6070], [55.7570, 37.6100], [55.7550, 37.6140],
+      [55.7538, 37.6173], [55.7510, 37.6210], [55.7490, 37.6250],
+      [55.7470, 37.6300], [55.7440, 37.6370], [55.7420, 37.6420],
+      [55.7390, 37.6480], [55.7370, 37.6530], [55.7350, 37.6600]
+    ];
+  }
+  if (!currentSurvey.defects) currentSurvey.defects = [];
+  if (!currentSurvey.controlPoints) currentSurvey.controlPoints = [];
+
+  currentSurvey.length = Math.round(Math.random() * 2000 + 500);
+}
+
+function runProcessing() {
+  const steps = [
+    'Чтение данных одометра и гироскопа',
+    'Расчёт траектории движения робота',
+    'Привязка к контрольным точкам',
+    'Определение координат дефектов',
+    'Верификация результатов',
+    'Формирование отчёта'
+  ];
+
+  const container = document.getElementById('processingSteps');
+  container.innerHTML = steps.map((s, i) => `
+    <div class="processing-step" id="step-${i}">
+      <div class="processing-step-icon">${i + 1}</div>
+      <div>${s}</div>
+    </div>
+  `).join('');
+
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i > 0) document.getElementById('step-' + (i - 1)).classList.add('done');
+    if (i < steps.length) {
+      document.getElementById('step-' + i).classList.add('active');
+      document.getElementById('processingSubtitle').textContent = steps[i] + '...';
+      i++;
+    } else {
+      clearInterval(interval);
+      currentSurvey.status = 'done';
+      currentSurvey.statusName = 'Обработка завершена';
+      document.getElementById('processingSpinner').style.display = 'none';
+      document.getElementById('processingTitle').textContent = '✓ Обработка завершена';
+      document.getElementById('processingSubtitle').textContent = `Найдено ${currentSurvey.defectsCount} дефектов`;
+      document.getElementById('btnViewResults').style.display = 'flex';
+      updateHeader();
+      updateNav();
+      renderSurveys();
+    }
+  }, 900);
+}
+
+/* =====================================================
+   RESULTS
+===================================================== */
+function renderResults() {
+  if (!currentSurvey) return;
+  document.getElementById('resultsTitle').textContent = currentSurvey.name;
+  document.getElementById('summaryLength').textContent = currentSurvey.length + ' м';
+  document.getElementById('summaryDefects').textContent = currentSurvey.defectsCount;
+  document.getElementById('summaryControl').textContent = currentSurvey.controlPointsCount;
+  document.getElementById('summaryStatus').textContent = 'Готово';
+  renderDefectList();
+}
+
+function renderMap() {
+  if (!map || !currentSurvey) return;
+
+  map.geoObjects.removeAll();
+
+  // Trajectory
+  if (currentSurvey.trajectory && currentSurvey.trajectory.length > 0) {
+    const line = new ymaps.Polyline(currentSurvey.trajectory, { hintContent: "Траектория" }, {
+      strokeColor: "#2563eb", strokeWidth: 7, strokeOpacity: 0.9
+    });
+    map.geoObjects.add(line);
+  }
+
+  // Control points
+  (currentSurvey.controlPoints || []).forEach(point => {
+    const coords = currentSurvey.trajectory[point.index];
+    if (!coords) return;
+    const marker = new ymaps.Placemark(coords, {
+      balloonContentHeader: `<strong>${point.id}</strong>`,
+      balloonContentBody: 'Геодезическая контрольная точка'
+    }, { preset: "islands#greenCircleDotIcon" });
+    map.geoObjects.add(marker);
+  });
+
+  // Defects
+  renderDefectMarkers();
+
+  // Fit bounds
+  if (map.geoObjects.getBounds()) {
+    map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 60 });
+  }
+}
+
+function renderDefectMarkers() {
+  defectMarkers.forEach(m => { try { map.geoObjects.remove(m); } catch(e){} });
+  defectMarkers = [];
+
+  (currentSurvey.defects || []).forEach(defect => {
+    const coords = [defect.position.latitude, defect.position.longitude];
+    const marker = new ymaps.Placemark(coords, {
+      balloonContentHeader: `<strong>${defect.id}</strong>`,
+      balloonContentBody: `
+        <div style="line-height:1.7;min-width:190px">
+          <div><b>Тип:</b> ${defect.typeName}</div>
+          <div><b>Степень:</b> ${defect.severityName}</div>
+          <div><b>Одометр:</b> ${defect.odometer.toFixed(1)} м</div>
+          <div><b>Широта:</b> ${defect.position.latitude.toFixed(6)}</div>
+          <div><b>Долгота:</b> ${defect.position.longitude.toFixed(6)}</div>
+        </div>`
+    }, { preset: "islands#redCircleDotIcon", zIndex: 100 });
+    marker.events.add("click", () => selectDefect(defect.id));
+    map.geoObjects.add(marker);
+    defectMarkers.push(marker);
+  });
+}
+
+function selectDefect(id) {
+  const defect = (currentSurvey.defects || []).find(d => d.id === id);
+  if (!defect) return;
+  selectedDefect = defect;
+  map.setCenter([defect.position.latitude, defect.position.longitude], 17, { duration: 300 });
+  renderDetails(defect);
+  renderDefectList();
+}
+
+function renderDetails(defect) {
+  const lat = defect.position.latitude, lng = defect.position.longitude;
+  document.getElementById("details").innerHTML = `
+    <div class="details-title">${defect.id}</div>
+    <div class="details-grid">
+      <div><div class="detail-label">Тип дефекта</div><div class="detail-value">${defect.typeName}</div></div>
+      <div><div class="detail-label">Степень</div><div class="detail-value">${defect.severityName}</div></div>
+      <div><div class="detail-label">Одометр</div><div class="detail-value">${defect.odometer.toFixed(1)} м</div></div>
+      <div><div class="detail-label">Положение</div><div class="detail-value">Участок обследования</div></div>
+      <div class="coordinates">
+        <div class="detail-label">Географические координаты</div>
+        <div class="coordinates-value">
+          <div class="coordinate-row">
+            <span>Широта</span>
+            <strong>${lat.toFixed(6)}°</strong>
+            <button class="coordinate-copy" onclick="copyCoordinate('${lat.toFixed(6)}')" title="Копировать">⧉</button>
+          </div>
+          <div class="coordinate-row">
+            <span>Долгота</span>
+            <strong>${lng.toFixed(6)}°</strong>
+            <button class="coordinate-copy" onclick="copyCoordinate('${lng.toFixed(6)}')" title="Копировать">⧉</button>
+          </div>
+        </div>
+      </div>
+      <div class="coordinates">
+        <button class="open-map-button" onclick="openDefectOnMap('${defect.id}')">Открыть на карте</button>
+      </div>
+    </div>`;
+}
+
+function renderDefectList(list) {
+  list = list || currentSurvey?.defects || [];
+  const container = document.getElementById("defectList");
+  if (!list.length) {
+    container.innerHTML = '<div class="empty">Дефекты не найдены</div>';
+    return;
+  }
+  container.innerHTML = list.map(defect => `
+    <div class="defect-item ${selectedDefect?.id === defect.id ? 'active' : ''}" onclick="selectDefect('${defect.id}')">
+      <div class="defect-top">
+        <div class="defect-id">${defect.id}</div>
+        <div class="type-badge">${defect.typeName}</div>
+      </div>
+      <div class="defect-type">Степень: ${defect.severityName}</div>
+      <div class="defect-odometer">Одометр: <strong>${defect.odometer.toFixed(1)} м</strong></div>
+      <div class="defect-coordinates">${defect.position.latitude.toFixed(6)}, ${defect.position.longitude.toFixed(6)}</div>
+    </div>`).join("");
+}
+
+function filterDefects() {
+  const search = document.getElementById("searchInput").value.toLowerCase().trim();
+  const type = document.getElementById("typeFilter").value;
+  const severity = document.getElementById("severityFilter").value;
+  const filtered = (currentSurvey.defects || []).filter(d => {
+    return d.id.toLowerCase().includes(search) &&
+           (!type || d.type === type) &&
+           (!severity || d.severity === severity);
+  });
+  renderDefectList(filtered);
+
+  // Sync map markers
+  if (mapReady) {
+    defectMarkers.forEach(m => { try { map.geoObjects.remove(m); } catch(e){} });
+    defectMarkers = [];
+    filtered.forEach(defect => {
+      const coords = [defect.position.latitude, defect.position.longitude];
+      const marker = new ymaps.Placemark(coords, {
+        balloonContentHeader: `<strong>${defect.id}</strong>`,
+        balloonContentBody: `Тип: ${defect.typeName}<br>Одометр: ${defect.odometer.toFixed(1)} м`
+      }, { preset: "islands#redCircleDotIcon", zIndex: 100 });
+      marker.events.add("click", () => selectDefect(defect.id));
+      map.geoObjects.add(marker);
+      defectMarkers.push(marker);
+    });
+  }
+}
+
+function resetFilters() {
+  document.getElementById("searchInput").value = "";
+  document.getElementById("typeFilter").value = "";
+  document.getElementById("severityFilter").value = "";
+  renderDefectList();
+  if (mapReady) renderDefectMarkers();
+}
+
+function copyCoordinate(value) {
+  navigator.clipboard.writeText(value)
+    .then(() => showToast(`Скопировано: ${value}`))
+    .catch(() => showToast("Не удалось скопировать"));
+}
+
+function openDefectOnMap(id) {
+  const defect = (currentSurvey.defects || []).find(d => d.id === id);
+  if (!defect) return;
+  map.setCenter([defect.position.latitude, defect.position.longitude], 18, { duration: 400 });
+}
+
+function setMapType(type) {
+  if (type === "satellite") {
+    map.setType("yandex#satellite");
+    document.getElementById("satelliteButton").classList.add("active");
+    document.getElementById("mapButton").classList.remove("active");
+  } else {
+    map.setType("yandex#map");
+    document.getElementById("mapButton").classList.add("active");
+    document.getElementById("satelliteButton").classList.remove("active");
+  }
+}
+
+/* =====================================================
+   EXPORT
+===================================================== */
+function showExportModal() {
+  document.getElementById('exportModal').style.display = 'flex';
+}
+function closeExportModal() {
+  document.getElementById('exportModal').style.display = 'none';
+}
+
+function doExport(format) {
+  closeExportModal();
+  if (!currentSurvey) { showToast('Нет данных для экспорта', 'error'); return; }
+
+  if (format === 'JSON') {
+    const data = JSON.stringify({
+      survey: { id: currentSurvey.id, name: currentSurvey.name, date: currentSurvey.date },
+      trajectory: currentSurvey.trajectory,
+      controlPoints: currentSurvey.controlPoints,
+      defects: currentSurvey.defects
+    }, null, 2);
+    downloadFile(`${currentSurvey.name}.json`, data, 'application/json');
+  } else if (format === 'CSV') {
+    const rows = [['ID', 'Тип', 'Степень', 'Одометр', 'Широта', 'Долгота']];
+    (currentSurvey.defects || []).forEach(d => {
+      rows.push([d.id, d.typeName, d.severityName, d.odometer, d.position.latitude, d.position.longitude]);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    downloadFile(`${currentSurvey.name}_defects.csv`, csv, 'text/csv');
+  } else if (format === 'KML') {
+    const placemarks = (currentSurvey.defects || []).map(d => `
+      <Placemark>
+        <name>${d.id}</name>
+        <description>${d.typeName} · ${d.severityName}</description>
+        <Point><coordinates>${d.position.longitude},${d.position.latitude},0</coordinates></Point>
+      </Placemark>`).join('');
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>${placemarks}</Document></kml>`;
+    downloadFile(`${currentSurvey.name}.kml`, kml, 'application/vnd.google-earth.kml+xml');
+  } else {
+    showToast(`Экспорт в ${format} будет реализован позже`, 'info');
+    return;
+  }
+  showToast(`Экспорт в ${format} выполнен`);
+}
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* =====================================================
+   TOAST
+===================================================== */
+let toastTimer = null;
+function showToast(message, type = 'info') {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("visible"), 2200);
+}
+
+document.getElementById('exportModal').addEventListener('click', (e) => {
+  if (e.target.id === 'exportModal') closeExportModal();
+});
+</script>
+</body>
+</html>
